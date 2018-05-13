@@ -12,6 +12,14 @@ const roads = [
   "Seth's House-Cabin"
 ];
 
+//manual route created to run the mailman robot
+const mailRoute = [
+  "Alice's House", "Cabin", "Seth's House", "Cabin", "Alice's House", "Bob's House",
+  "Town Hall", "Daria's House", "Ernie's House",
+  "Grete's House", "Shop", "Grete's House", "Farm",
+  "Marketplace", "Post Office"
+];
+
 function buildGraph(roads) {
   let graph = Object.create(null);
   function addPath(from, to) {
@@ -31,15 +39,57 @@ function buildGraph(roads) {
 const roadGraph = buildGraph(roads);
 
 //helper functions
+
+//makes a random selection from the roadGraph array
 function randomPick(array) {
   let choice = Math.floor(Math.random() * array.length);
   return array[choice];
 }
 
+//use to find the shortest or one of the shortest routes
+function findRoute(graph, from, to) {
+  let work = [{at: from, route: []}];
+  for (let i = 0; i < work.length; i++) {
+    let {at, route} = work[i];
+    for (let place of graph[at]) {
+      if (place == to) return route.concat(place);
+      if (!work.some(w => w.at == place)) {
+        work.push({at: place, route: route.concat(place)});
+      }
+    }
+  }
+}
+
 //robot types
+
 //this is a robot that randomly picks its next destination
 function randomRobot(state) {
   return {direction: randomPick(roadGraph[state.place])};
+}
+
+//this robot keeps track of where it's been and removes
+//a place its already been from its memory
+//this is the mailman robot
+function routeRobot(state, memory) {
+  if (memory.length == 0) {
+    memory = mailRoute;
+  }
+  return {direction: memory[0], memory: memory.slice(1)};
+}
+
+//smarter robot
+function goalOrientedRobot({place, parcels}, route) {
+  if (route.length == 0) {
+    let parcel = parcels[0];
+    if (parcel.place != place) {
+      //find a route to pick up package
+      route = findRoute(roadGraph, place, parcel.place);
+    } else {
+      //find a route to deliver package
+      route = findRoute(roadGraph, place, parcel.address);
+    }
+  }
+  return {direction: route[0], memory: route.slice(1)};
 }
 
 //a class to keep track of 2 states
@@ -59,7 +109,7 @@ class VillageState {
       let parcels = this.parcels.map(p => {
         //if p.place is not where we currently are, then there is no package to pick up, so we just leave it alone
         if (p.place != this.place) return p;
-        //else we pick that shit up, and change its place to be the next place where headed, since we are just now going to carry it around with us until we find its spot to be delivered
+        //else we pick that package up, and change its place to be the next place where headed, since we are just now going to carry it around with us until we find its spot to be delivered
         return {place: destination, address: p.address};
         //the filter is getting rid of packages that are ready to be delivered
       }).filter(p => p.place != p.address);
@@ -99,4 +149,5 @@ function runRobot(state, robot, memory) {
   }
 }
 
-runRobot(VillageState.random(), randomRobot, []);
+runRobot(VillageState.random(), goalOrientedRobot, []);
+ 
